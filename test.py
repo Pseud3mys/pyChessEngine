@@ -34,10 +34,10 @@ board = g.Board()
 print(board)
 pos = "E4"
 team = "White"
-Piece = g.Knight(g.Team2num[team], board, pos)
+Piece = g.Queen(g.Team2num[team], board, pos)
 MAT[Piece.p.L, Piece.p.C] = 3
 
-Enemey = g.Pion(-g.Team2num[team], board, "F2")
+Enemey = g.Pawn(g.Team2num[team], board, "G6")
 MAT[Enemey.p.L, Enemey.p.C] = 3
 
 Moves = Piece.getValidMoves()
