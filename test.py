@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib as mpl
-import ChessEngine as g
+import ChessEngine as e
 
 
 def affichage(matrice: [[int]], d=1):
@@ -28,7 +28,7 @@ def affichage(matrice: [[int]], d=1):
     plt.pause(d)  # Temps de pause pour que l'affichage dynamique laisse le temps d'observer les évolutions du jeu
 
 
-MAT = np.zeros((8, 8)) # pour debug
+"""MAT = np.zeros((8, 8)) # pour debug
 
 board = g.Board()
 print(board)
@@ -47,4 +47,8 @@ for m in Moves:
     elif m.type == g.DEPLACE:
         MAT[m.end.L, m.end.C] = 1
 
-affichage(MAT, 10)
+affichage(MAT, 10)"""
+
+g = e.ChessGame()
+while True:
+    g.play_next()
