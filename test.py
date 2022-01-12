@@ -27,28 +27,11 @@ def affichage(matrice: [[int]], d=1):
     plt.ion()  # Affichage dynamique
     plt.pause(d)  # Temps de pause pour que l'affichage dynamique laisse le temps d'observer les évolutions du jeu
 
+# py Chess/test.py
 
-"""MAT = np.zeros((8, 8)) # pour debug
 
-board = g.Board()
-print(board)
-pos = "E4"
-team = "White"
-Piece = g.Queen(g.Team2num[team], board, pos)
-MAT[Piece.p.L, Piece.p.C] = 3
-
-Enemey = g.Pawn(g.Team2num[team], board, "G6")
-MAT[Enemey.p.L, Enemey.p.C] = 3
-
-Moves = Piece.getValidMoves()
-for m in Moves:
-    if m.type == g.EAT:
-        MAT[m.end.L, m.end.C] = 2
-    elif m.type == g.DEPLACE:
-        MAT[m.end.L, m.end.C] = 1
-
-affichage(MAT, 10)"""
-
+print("Start !")
 g = e.ChessGame()
 while True:
-    g.play_next()
+    g.play_next(deleteQuestion=True)
+    #print(g.board)
