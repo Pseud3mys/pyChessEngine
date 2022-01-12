@@ -1,4 +1,5 @@
 import numpy as np
+import os
 
 # position = (Ligne, Colonne)
 num2Letter = "abcdefgh"
@@ -11,9 +12,6 @@ num2Team = [None, "White", "Black"]  # [1]=white, [-1]=black
 
 DEPLACE = "deplace"
 EAT = "eat"
-
-
-# numpy mat, 1er = Ligne
 
 
 class Position:
@@ -44,21 +42,34 @@ class Move:
         self.team = piece.team
         self.start = piece.p
         self.end = pos
-        if isEnemy(piece, self.end):
+        self.eatablePiece = isEnemy(piece, self.end)
+        if self.eatablePiece:  # s'il y a un enemy là
             self.type = EAT
         else:
             self.type = DEPLACE
 
-    def isValid(self, eatOnly=False):
+    def isValid(self, eatOnly=False, moveOnly=False):
         one = self.start.isValid() and self.end.isValid()
         # on peut pas bouger sur un allier (pas comestible)
         two = not isAlly(self.piece, self.end)
+        assert not (eatOnly and moveOnly)
         if eatOnly:
-            two = isEnemy(self.piece, self.end)
+            two = self.type == EAT
+        elif moveOnly:
+            two = self.type == DEPLACE
         return one and two
 
+    def play(self):
+        if self.type == EAT:
+            self.piece.board.deletePiece(self.eatablePiece)
+        self.piece.p = self.end
+
     def __str__(self):
-        return str(self.piece) + " to " + str(self.end)
+        if self.type == EAT:
+            return str(self.piece) + " eat " + str(self.eatablePiece) + " in " + str(self.end)
+        else:
+            return str(self.piece) + " to " + str(self.end)
+
 
 
 class Board:
@@ -66,6 +77,8 @@ class Board:
         self.matrice = np.zeros((8, 8))
         self.InGamePieces = []
         self.AllMoves = []
+        self.isCheck = False
+        # self.isCheckMate = False
 
     def setupStart(self):
         for c in "abcdefgh":
@@ -91,9 +104,12 @@ class Board:
     def addPieces(self, piece):
         self.InGamePieces.append(piece)
 
+    def deletePiece(self, piece):
+        self.InGamePieces.remove(piece)
+
     def getPiecesAtPosition(self, position: Position):
         for Piece in self.InGamePieces:
-            # on compare les str car les position ne seront pas le meme objet
+            # on compare les str car les positions ne seront pas le meme objet
             if str(Piece.p) == str(position):
                 return Piece
         else:
@@ -104,7 +120,6 @@ class Board:
             RelativePos = Position(piece.p.L + i * L_opp, piece.p.C + i * C_opp)
             if self.getPiecesAtPosition(RelativePos):
                 # on ne peut pas sauter au dessus d'un pion
-                is_enemy = isEnemy(piece, RelativePos)
                 m = Move(piece, RelativePos)
                 if m.isValid():
                     moves.append(m)
@@ -129,17 +144,23 @@ class Board:
         self._loop(piece, moves, -1, -1)
         return moves
 
-    def generateAllMoves(self):
+    def UpdateBoard(self):
+        # update possible move
         self.AllMoves = []
         for piece in self.InGamePieces:
             self.AllMoves += piece.getValidMoves()
-
-    def updateMatrice(self):
+        # update Check
+        self.isCheck = False
+        for move in self.AllMoves:
+            if type(move.eatablePiece) == King:
+                self.isCheck = True
+        # update matrice
+        self.matrice = np.zeros((8, 8))
         for piece in self.InGamePieces:
             self.matrice[piece.p.L, piece.p.C] = piece.numID
 
     def __str__(self):
-        self.updateMatrice()
+        self.UpdateBoard()
         return str(self.matrice)
 
 
@@ -160,10 +181,10 @@ class Pawn:
         p = self.p
         TeamForward = - 1 * self.team  # On step forward
         m = Move(self, Position(p.L + TeamForward, p.C))
-        if m.isValid():
+        if m.isValid(moveOnly=True):
             moves.append(m)
             m2 = Move(self, Position(p.L + 2 * TeamForward, p.C))
-            if (p.L == 1 or p.L == 6) and m2.isValid():
+            if (p.L == 1 or p.L == 6) and m2.isValid(moveOnly=True):
                 moves.append(m2)
 
         mEat1 = Move(self, Position(p.L + TeamForward, p.C + 1))
@@ -234,7 +255,7 @@ class Queen:
         self.p = Position(matricePos)
 
     def __str__(self):
-        return num2Team[self.team] + " rook"
+        return num2Team[self.team] + " queen"
 
     def getValidMoves(self):
         moves = self.board.generateLineMoves(self)
@@ -286,12 +307,13 @@ class King:
 
 def isEnemy(MApiece, position: Position):
     if not position.isValid():
-        return False
+        return None
     UnknownPiece = MApiece.board.getPiecesAtPosition(position)
     # s'il n'y a aucun piece à cette cordonné
     if UnknownPiece is None:
-        return False
-    return UnknownPiece.team != MApiece.team
+        return None
+    if UnknownPiece.team != MApiece.team:
+        return UnknownPiece
 
 
 def isAlly(MApiece, position: Position):
@@ -304,21 +326,26 @@ def isAlly(MApiece, position: Position):
     return UnknownPiece.team == MApiece.team
 
 
-str2Piece = {"R": King,
-             "D": Queen,
-             "F": Bishop,
-             "C": Knight,
-             "T": Rook}
+str2Piece = {"K": King,
+             "Q": Queen,
+             "B": Bishop,
+             "N": Knight,
+             "R": Rook}
 
 
 class ChessGame:
     def __init__(self):
         self.board = Board()
         self.board.setupStart()
-        self.board.generateAllMoves()
-        self.turn = 1  # turn team
+        self.board.UpdateBoard()
+        self.turn = 1  # team White start
+        self.moveCount = 0
+        self._allStrMove = []
 
     def read_Move(self, str_move, str_team):
+        if str_move == "print":
+            print(self.board)
+            return None
         if len(str_move) == 2:
             lettre = str_move[0]
             chiffre = str_move[1]
@@ -331,7 +358,7 @@ class ChessGame:
                 piece_class = str2Piece[pion]
             except:
                 print("Pion inconnu.")
-                return
+                return None
         else:
             print("connais po.")
             return None
@@ -343,11 +370,23 @@ class ChessGame:
             print("no valid move find.")
             return None
 
-    def play_next(self):
-        self.board.generateAllMoves()
+    def play_next(self, deleteQuestion=False):
+        self.board.UpdateBoard()
         move = None
+        print("") # saute une ligne
         while not move:
             str_team = num2Team[self.turn]
             player_in = input("move for %s: " % str_team)
             move = self.read_Move(player_in, str_team)
+            if move is None:  # si aucun n'a ete trouvé
+                continue
+        self.moveCount += 1
+        if deleteQuestion:
+            os.system("cls")
+            for s in self._allStrMove:
+                print(s)
+        s = "(move %d)" % self.moveCount + " " + str(move)
+        print(s)
+        self._allStrMove.append(s)
+        move.play()
         self.turn *= -1  # change team
